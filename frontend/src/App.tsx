@@ -25,6 +25,8 @@ function App(){
   const [settingsOpen,setSettingsOpen]=useState(false)
   const [search,setSearch]=useState('')
   const [activeTool,setActiveTool]=useState<Tool>('extract')
+  const [mobileView,setMobileView]=useState<'pdf'|'text'>('text')
+  const [exportMenuOpen,setExportMenuOpen]=useState(false)
   const [legalOpen,setLegalOpen]=useState<'impressum'|'datenschutz'|null>(()=>{
     const p=window.location.pathname
     return p==='/impressum'?'impressum':p==='/datenschutz'?'datenschutz':null
@@ -160,7 +162,11 @@ function App(){
     <StatusBar status={status}/>
     {status.state!=='COMPLETE'&&status.state!=='FAILED'&&<div className="processing-hint">Die Verarbeitung kann bei umfangreichen oder gescannten PDFs mehrere Minuten dauern.</div>}
     {error&&<div className="inline-error">{error}</div>}
-    <main className="workspace">
+    <div className="mobile-view-toggle">
+      <button className={mobileView==='pdf'?'active':''} onClick={()=>setMobileView('pdf')}>PDF</button>
+      <button className={mobileView==='text'?'active':''} onClick={()=>setMobileView('text')}>Text</button>
+    </div>
+    <main className={`workspace mobile-${mobileView}`}>
       <aside className="thumb-panel">
         <div className="panel-title">SEITEN</div>
         <div className="thumb-scroll">
@@ -210,7 +216,14 @@ function App(){
         <nav className="legal-links workspace-legal-links"><a href="/impressum" onClick={e=>openLegal('impressum',e)}>Impressum</a><span>·</span><a href="/datenschutz" onClick={e=>openLegal('datenschutz',e)}>Datenschutz</a></nav>
       </div>
       <div className={`completion ${status.state==='COMPLETE'?'done':''}`}>{status.state==='COMPLETE'?<Check size={17}/>:<div className="mini-spinner"/>}<span>{status.state==='COMPLETE'?'Verarbeitung abgeschlossen':status.current_message}</span></div>
-      <div className="exports"><a className={status.state!=='COMPLETE'?'disabled':''} href={status.state==='COMPLETE'?exportUrl(status.id,'markdown'):undefined}><Download size={17}/> Markdown</a><a className={status.state!=='COMPLETE'?'disabled':''} href={status.state==='COMPLETE'?exportUrl(status.id,'text'):undefined}><Download size={17}/> TXT</a><a className={status.state!=='COMPLETE'?'disabled':''} href={status.state==='COMPLETE'?exportUrl(status.id,'json'):undefined}><Download size={17}/> JSON</a><button className="primary" onClick={()=>reset(true)}><Plus size={18}/> Neue PDF</button></div>
+      <div className="exports">
+        <div className="export-buttons"><a className={status.state!=='COMPLETE'?'disabled':''} href={status.state==='COMPLETE'?exportUrl(status.id,'markdown'):undefined}><Download size={17}/> Markdown</a><a className={status.state!=='COMPLETE'?'disabled':''} href={status.state==='COMPLETE'?exportUrl(status.id,'text'):undefined}><Download size={17}/> TXT</a><a className={status.state!=='COMPLETE'?'disabled':''} href={status.state==='COMPLETE'?exportUrl(status.id,'json'):undefined}><Download size={17}/> JSON</a></div>
+        <div className="export-menu-wrap">
+          <button className="export-trigger" disabled={status.state!=='COMPLETE'} onClick={()=>setExportMenuOpen(o=>!o)} aria-expanded={exportMenuOpen}><Download size={17}/> Export</button>
+          {exportMenuOpen && <ExportDropdown jobId={status.id} onClose={()=>setExportMenuOpen(false)}/>}
+        </div>
+        <button className="primary" onClick={()=>reset(true)}><Plus size={18}/> Neue PDF</button>
+      </div>
     </footer>
     {settingsOpen&&<SettingsModal config={config} onClose={()=>setSettingsOpen(false)} onOpenLegal={kind=>{setSettingsOpen(false);openLegal(kind)}}/>}
     {legalOpen&&<LegalModal kind={legalOpen} onClose={closeLegal}/>}
@@ -259,6 +272,21 @@ function MobileMenu({active,onChange,onClose,theme,setTheme,onSettings}:{active:
       <button role="menuitem" onClick={onSettings}><HelpCircle size={18}/>Info</button>
       <button role="menuitem" onClick={()=>setTheme(theme==='light'?'dark':'light')}>{theme==='light'?<Moon size={18}/>:<Sun size={18}/>}Darstellung wechseln</button>
       <button role="menuitem" onClick={openKofi}><Heart size={18}/>Unterstützen (Ko-fi)</button>
+    </div>
+  </>
+}
+
+function ExportDropdown({jobId,onClose}:{jobId:string;onClose:()=>void}){
+  useEffect(()=>{
+    function onKeyDown(e:KeyboardEvent){ if(e.key==='Escape') onClose() }
+    document.addEventListener('keydown',onKeyDown)
+    return ()=>document.removeEventListener('keydown',onKeyDown)
+  },[onClose])
+  const items:['markdown'|'text'|'json', string][]=[['markdown','Markdown (.md)'],['text','Text (.txt)'],['json','JSON (.json)']]
+  return <>
+    <div className="menu-backdrop" onClick={onClose}/>
+    <div className="export-dropdown" role="menu">
+      {items.map(([kind,label])=><a key={kind} role="menuitem" href={exportUrl(jobId,kind)} onClick={onClose}><Download size={16}/>{label}</a>)}
     </div>
   </>
 }
