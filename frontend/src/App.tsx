@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Document, Page } from 'react-pdf'
 import ReactMarkdown from 'react-markdown'
-import { Check, ChevronLeft, ChevronRight, Clipboard, Copy, Download, Eraser, FileText, Heart, HelpCircle, Images, Menu, Moon, Plus, RotateCw, Search, Sun, Trash2, UploadCloud, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, Clipboard, Combine, Copy, Download, Eraser, FileText, Heart, HelpCircle, Images, Menu, Moon, Plus, RotateCw, Search, Sun, Trash2, UploadCloud, X, ZoomIn, ZoomOut } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { deleteJob, exportUrl, extractImages, fileUrl, getConfig, getPages, getStatus, stripMetadata, uploadPdf } from './api'
+import { deleteJob, exportUrl, extractImages, fileUrl, getConfig, getPages, getStatus, mergePdfs, stripMetadata, uploadPdf } from './api'
 import type { AppConfig, JobStatus, PageResult } from './types'
 
 type Tab='preview'|'markdown'|'text'
-type Tool='extract'|'metadata'|'images'
+type Tool='extract'|'metadata'|'images'|'merge'
 
 function formatBytes(bytes:number){ if(bytes<1024*1024) return `${(bytes/1024).toFixed(0)} KB`; return `${(bytes/1024/1024).toFixed(1)} MB` }
 
@@ -107,7 +107,7 @@ function App(){
               <input ref={inputRef} hidden type="file" accept="application/pdf,.pdf" onChange={e=>handleFile(e.target.files?.[0])}/>
             </div>
             {error && <div className="error-banner">{error}</div>}
-          </> : <ToolPage key={activeTool} tool={activeTool}/>}
+          </> : activeTool==='merge' ? <MergePage/> : <ToolPage key={activeTool} tool={activeTool}/>}
         </section>
         {activeTool==='extract' && <section className="seo-info">
           <h1>Datenfreundlicher PDF-Konverter: PDF zu Markdown, Text und JSON</h1>
@@ -137,6 +137,12 @@ function App(){
               <p>Nein. Es findet kein Training statt. Die optionale KI-Strukturierungsstufe ist auf dieser Instanz standardmäßig deaktiviert; falls sie aktiv ist, läuft sie über ein selbst betriebenes, lokales Sprachmodell (Ollama) — Textinhalte verlassen den Server auch dann nicht.</p>
             </details>
           </div>
+        </section>}
+        {activeTool==='merge' && <section className="seo-info">
+          <h1>PDFs zusammenführen — mehrere Dateien zu einer kombinieren</h1>
+          <p>Wähle mehrere PDF-Dateien aus, bringe sie in die gewünschte Reihenfolge und lade sie als eine zusammengeführte PDF-Datei herunter — praktisch für Rechnungssammlungen, Scans mehrerer Dokumente oder Kapitel, die als ein Dokument versendet werden sollen.</p>
+          <h2>Warum das datenfreundlich ist</h2>
+          <p>Auch hier läuft die Verarbeitung ausschließlich im Arbeitsspeicher des Servers, ohne dauerhafte Speicherung. Details dazu in der <a href="/datenschutz" onClick={e=>openLegal('datenschutz',e)}>Datenschutzerklärung</a>.</p>
         </section>}
         {activeTool==='metadata' && <section className="seo-info">
           <h1>PDF-Metadaten entfernen — Autor, Software und Erstellungsdatum löschen</h1>
@@ -236,7 +242,7 @@ function openKofi(){
   }
 }
 
-const TOOL_ITEMS:[Tool,string,LucideIcon][]=[['extract','PDF → Text',FileText],['metadata','Metadaten entfernen',Eraser],['images','Bilder extrahieren',Images]]
+const TOOL_ITEMS:[Tool,string,LucideIcon][]=[['extract','PDF → Text',FileText],['merge','PDFs zusammenführen',Combine],['metadata','Metadaten entfernen',Eraser],['images','Bilder extrahieren',Images]]
 
 function Header({theme,setTheme,onSettings,meta,activeTool,onToolChange}:{theme:'light'|'dark';setTheme:(t:'light'|'dark')=>void;onSettings:()=>void;meta?:JSX.Element;activeTool?:Tool;onToolChange?:(t:Tool)=>void}){
   const [menuOpen,setMenuOpen]=useState(false)
@@ -288,6 +294,70 @@ function ExportDropdown({jobId,onClose}:{jobId:string;onClose:()=>void}){
     <div className="export-dropdown" role="menu">
       {items.map(([kind,label])=><a key={kind} role="menuitem" href={exportUrl(jobId,kind)} onClick={onClose}><Download size={16}/>{label}</a>)}
     </div>
+  </>
+}
+
+function MergePage(){
+  const [files,setFiles]=useState<File[]>([])
+  const [busy,setBusy]=useState(false)
+  const [error,setError]=useState<string|null>(null)
+  const [result,setResult]=useState<{url:string;name:string}|null>(null)
+  const [drag,setDrag]=useState(false)
+  const inputRef=useRef<HTMLInputElement>(null)
+
+  useEffect(()=>()=>{ if(result) URL.revokeObjectURL(result.url) },[result])
+
+  function addFiles(list?:FileList|File[]|null){
+    if(!list) return
+    setError(null); setResult(null)
+    const picked=Array.from(list)
+    const nonPdf=picked.find(f=>f.type!=='application/pdf' && !f.name.toLowerCase().endsWith('.pdf'))
+    if(nonPdf){ setError(`"${nonPdf.name}" ist keine PDF-Datei.`); return }
+    setFiles(prev=>[...prev,...picked])
+  }
+  function move(index:number,dir:-1|1){
+    setFiles(prev=>{
+      const next=[...prev]
+      const target=index+dir
+      if(target<0||target>=next.length) return prev
+      ;[next[index],next[target]]=[next[target],next[index]]
+      return next
+    })
+  }
+  function remove(index:number){ setFiles(prev=>prev.filter((_,i)=>i!==index)) }
+
+  async function merge(){
+    if(files.length<2){ setError('Bitte mindestens zwei PDF-Dateien auswählen.'); return }
+    setError(null); setBusy(true)
+    try{
+      const blob=await mergePdfs(files)
+      setResult({url:URL.createObjectURL(blob), name:'zusammengefuehrt.pdf'})
+    }catch(e){ setError((e as Error).message) }
+    finally{ setBusy(false) }
+  }
+
+  return <>
+    <div className={`dropzone ${drag?'dragging':''}`} onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);addFiles(e.dataTransfer.files)}} onClick={()=>inputRef.current?.click()} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==='Enter'||e.key===' ') inputRef.current?.click()}}>
+      <div className="upload-icon"><Combine size={32}/></div>
+      <h2>PDFs zusammenführen</h2>
+      <p>Mehrere PDF-Dateien auswählen oder hierher ziehen</p>
+      <button className="primary" onClick={e=>{e.stopPropagation();inputRef.current?.click()}}>PDFs auswählen</button>
+      <input ref={inputRef} hidden type="file" accept="application/pdf,.pdf" multiple onChange={e=>{addFiles(e.target.files); e.target.value=''}}/>
+    </div>
+    {files.length>0 && <ul className="merge-list">
+      {files.map((f,i)=><li key={i}>
+        <span className="merge-list-index">{i+1}</span>
+        <span className="merge-list-name">{f.name}</span>
+        <span className="merge-list-actions">
+          <button onClick={()=>move(i,-1)} disabled={i===0} aria-label="Nach oben"><ArrowUp size={15}/></button>
+          <button onClick={()=>move(i,1)} disabled={i===files.length-1} aria-label="Nach unten"><ArrowDown size={15}/></button>
+          <button onClick={()=>remove(i)} aria-label="Entfernen"><X size={15}/></button>
+        </span>
+      </li>)}
+    </ul>}
+    {files.length>0 && !result && <button className="primary" disabled={busy||files.length<2} onClick={merge}>{busy?'Wird zusammengeführt…':`${files.length} PDFs zusammenführen`}</button>}
+    {result && <a className="primary" href={result.url} download={result.name}><Download size={18}/> {result.name}</a>}
+    {error && <div className="error-banner">{error}</div>}
   </>
 }
 

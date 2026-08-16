@@ -36,3 +36,7 @@ export async function extractImages(file:File):Promise<Blob>{
   const body=new FormData(); body.append('file',file)
   return checkedBlob(await fetch('/api/tools/images/extract',{method:'POST',body}))
 }
+export async function mergePdfs(files:File[]):Promise<Blob>{
+  const body=new FormData(); files.forEach(f=>body.append('files',f))
+  return checkedBlob(await fetch('/api/tools/merge',{method:'POST',body}))
+}

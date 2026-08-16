@@ -16,6 +16,16 @@ def strip_metadata(data: bytes) -> bytes:
         return out.getvalue()
 
 
+def merge_pdfs(files: list[bytes]) -> bytes:
+    merged = pikepdf.new()
+    for data in files:
+        with pikepdf.open(io.BytesIO(data)) as src:
+            merged.pages.extend(src.pages)
+    out = io.BytesIO()
+    merged.save(out)
+    return out.getvalue()
+
+
 def extract_images(data: bytes) -> bytes:
     doc = fitz.open(stream=data, filetype="pdf")
     buf = io.BytesIO()

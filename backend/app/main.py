@@ -18,7 +18,9 @@ from .store import store, ROOT
 from .processor import process_job_with_timeout, try_acquire_job_slot, release_job_slot
 from .exporter import markdown_export, text_export, json_export
 from .stats import stats
-from .tools import strip_metadata, extract_images
+from .tools import strip_metadata, extract_images, merge_pdfs
+
+MAX_MERGE_FILES = 20
 
 async def cleanup_loop():
     while True:
@@ -161,6 +163,32 @@ async def _read_and_validate_pdf(file: UploadFile) -> bytes:
     if not first.startswith(b"%PDF-"):
         raise HTTPException(415, "Die Datei besitzt keine gültige PDF-Signatur.")
     return b"".join(chunks)
+
+
+async def _extract_uploads(request: Request) -> list[UploadFile]:
+    """Wie `_extract_upload`, aber für mehrere Dateien unter dem Formularfeld 'files'."""
+    max_part_size = (settings.max_file_size_mb + 5) * 1024 * 1024
+    try:
+        form = await request.form(max_part_size=max_part_size)
+    except MultiPartException:
+        raise HTTPException(413, f"Datei ist größer als {settings.max_file_size_mb} MB.")
+    files = [f for f in form.getlist("files") if not isinstance(f, str)]
+    if len(files) < 2:
+        raise HTTPException(422, "Bitte mindestens zwei PDF-Dateien zum Zusammenführen auswählen.")
+    if len(files) > MAX_MERGE_FILES:
+        raise HTTPException(413, f"Maximal {MAX_MERGE_FILES} Dateien auf einmal zusammenführbar.")
+    return files
+
+
+@app.post("/api/tools/merge")
+async def tool_merge(request: Request):
+    uploads = await _extract_uploads(request)
+    datas = [await _read_and_validate_pdf(f) for f in uploads]
+    try:
+        result = merge_pdfs(datas)
+    except Exception:
+        raise HTTPException(422, "Mindestens eine PDF konnte nicht verarbeitet werden (evtl. verschlüsselt oder beschädigt).")
+    return Response(result, media_type="application/pdf", headers={"Content-Disposition": content_disposition("zusammengefuehrt.pdf")})
 
 
 @app.post("/api/tools/metadata/strip")
