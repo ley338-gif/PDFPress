@@ -8,9 +8,10 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import quote
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, HTTPException, BackgroundTasks, Request
 from fastapi.responses import FileResponse, PlainTextResponse, Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.formparsers import MultiPartException
 from .config import settings
 from .models import DocumentJob
 from .store import store, ROOT
@@ -69,8 +70,29 @@ async def config_public():
         "llm_model": settings.ollama_model if settings.llm_enabled else None,
     }
 
+async def _extract_upload(request: Request) -> UploadFile:
+    """Parst das Formular manuell statt über `UploadFile = File(...)`.
+
+    FastAPI ruft für die automatische File-Dependency intern `request.form()` ohne
+    Parameter auf — Starlette begrenzt dabei jeden Multipart-Teil hart auf 1 MB
+    (`MultiPartParser.max_part_size`, Default seit neueren Starlette-Versionen), egal
+    wie `MAX_FILE_SIZE_MB` konfiguriert ist. Jede PDF über 1 MB würde damit unabhängig
+    vom eigentlichen Limit mit einem kryptischen "error parsing the body" abgelehnt.
+    """
+    max_part_size = (settings.max_file_size_mb + 5) * 1024 * 1024
+    try:
+        form = await request.form(max_part_size=max_part_size)
+    except MultiPartException:
+        raise HTTPException(413, f"Datei ist größer als {settings.max_file_size_mb} MB.")
+    file = form.get("file")
+    if file is None or isinstance(file, str):
+        raise HTTPException(422, "Kein Datei-Feld 'file' im Formular gefunden.")
+    return file
+
+
 @app.post("/api/documents", status_code=202)
-async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+async def upload_document(background_tasks: BackgroundTasks, request: Request):
+    file = await _extract_upload(request)
     filename = Path(file.filename or "document.pdf").name
     if file.content_type and file.content_type not in {"application/pdf", "application/octet-stream"}:
         raise HTTPException(415, "Der MIME-Typ des Uploads ist kein PDF.")
@@ -142,7 +164,8 @@ async def _read_and_validate_pdf(file: UploadFile) -> bytes:
 
 
 @app.post("/api/tools/metadata/strip")
-async def tool_strip_metadata(file: UploadFile = File(...)):
+async def tool_strip_metadata(request: Request):
+    file = await _extract_upload(request)
     data = await _read_and_validate_pdf(file)
     try:
         result = strip_metadata(data)
@@ -153,7 +176,8 @@ async def tool_strip_metadata(file: UploadFile = File(...)):
 
 
 @app.post("/api/tools/images/extract")
-async def tool_extract_images(file: UploadFile = File(...)):
+async def tool_extract_images(request: Request):
+    file = await _extract_upload(request)
     data = await _read_and_validate_pdf(file)
     try:
         result = extract_images(data)
