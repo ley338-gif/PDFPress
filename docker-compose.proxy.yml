@@ -1,0 +1,10 @@
+services:
+  frontend:
+    container_name: pdfpress-frontend
+    networks:
+      - default
+      - proxy
+
+networks:
+  proxy:
+    external: true

@@ -1,0 +1,15 @@
+services:
+  backend:
+    environment:
+      LLM_ENABLED: "true"
+      OLLAMA_BASE_URL: http://ollama:11434
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    expose:
+      - "11434"
+
+volumes:
+  ollama_data:

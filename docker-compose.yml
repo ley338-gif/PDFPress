@@ -1,0 +1,84 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 3G
+    environment:
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-100}
+      MAX_PAGES: ${MAX_PAGES:-200}
+      DOCUMENT_RETENTION_MINUTES: ${DOCUMENT_RETENTION_MINUTES:-60}
+      OCR_LANGUAGE: ${OCR_LANGUAGE:-deu+eng}
+      OCR_DPI: ${OCR_DPI:-200}
+      OCR_TIMEOUT_SECONDS: ${OCR_TIMEOUT_SECONDS:-90}
+      PROCESSING_TIMEOUT_SECONDS: ${PROCESSING_TIMEOUT_SECONDS:-1800}
+      MAX_CONCURRENT_JOBS: ${MAX_CONCURRENT_JOBS:-3}
+      MAX_RENDER_PIXELS: ${MAX_RENDER_PIXELS:-50000000}
+      PAGE_RENDER_TIMEOUT_SECONDS: ${PAGE_RENDER_TIMEOUT_SECONDS:-60}
+      ENABLE_API_DOCS: ${ENABLE_API_DOCS:-false}
+      LLM_ENABLED: ${LLM_ENABLED:-false}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:1.7b}
+    expose:
+      - "8000"
+    tmpfs:
+      - /tmp/paperdrop:size=2g,mode=1770,uid=10001,gid=10001
+    volumes:
+      # Enthält ausschließlich einen Zähler ("wie viele PDFs wurden insgesamt
+      # eingereicht"), keine Dateinamen, IPs oder Dokumentinhalte. Bewusst
+      # persistent (im Gegensatz zu /tmp/paperdrop), damit die Zahl Redeploys
+      # übersteht statt bei jedem Neustart auf 0 zu springen.
+      - pdfpress-stats:/data
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).read()"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:size=32m,mode=1777
+      - /var/run:size=4m,mode=1777
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - NET_BIND_SERVICE
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  pdfpress-stats:
