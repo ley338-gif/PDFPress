@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Document, Page } from 'react-pdf'
 import ReactMarkdown from 'react-markdown'
-import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, Clipboard, Combine, Copy, Download, Eraser, FileText, Heart, HelpCircle, Images, Menu, Moon, Plus, RotateCw, Search, Sun, Trash2, UploadCloud, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, Clipboard, Combine, Copy, Download, Eraser, FileText, Heart, HelpCircle, Images, Menu, MessageCircleQuestion, Moon, Plus, RotateCw, Search, Sun, Trash2, UploadCloud, X, ZoomIn, ZoomOut } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { deleteJob, exportUrl, extractImages, fileUrl, getConfig, getPages, getStatus, mergePdfs, stripMetadata, uploadPdf } from './api'
 import type { AppConfig, JobStatus, PageResult } from './types'
 
 type Tab='preview'|'markdown'|'text'
-type Tool='extract'|'metadata'|'images'|'merge'
+type Tool='extract'|'metadata'|'images'|'merge'|'faq'
 
 function formatBytes(bytes:number){ if(bytes<1024*1024) return `${(bytes/1024).toFixed(0)} KB`; return `${(bytes/1024/1024).toFixed(1)} MB` }
 
@@ -90,13 +90,17 @@ function App(){
     const content=tab==='markdown'?pageData?.markdown:pageData?.text
     if(content) await navigator.clipboard.writeText(content)
   }
+  function goHome(){
+    if(status) reset(true)
+    setActiveTool('extract')
+    setExportMenuOpen(false)
+  }
 
   if(!status){
     return <div className="app-shell start-shell">
-      <Header theme={theme} setTheme={setTheme} onSettings={()=>setSettingsOpen(true)} activeTool={activeTool} onToolChange={setActiveTool} />
+      <Header theme={theme} setTheme={setTheme} onSettings={()=>setSettingsOpen(true)} activeTool={activeTool} onToolChange={setActiveTool} onLogoClick={goHome} />
       <main className="start-main">
-        <section className="hero">
-          <img src="/PDFPressLogo.png" className="hero-logo" alt="PDFPress – PDF rein. Strukturierter Text raus." />
+        {activeTool!=='faq' && <section className="hero">
           {activeTool==='extract' ? <>
             <div className={`dropzone ${drag?'dragging':''}`} onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);handleFile(e.dataTransfer.files[0])}} onClick={()=>inputRef.current?.click()} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==='Enter'||e.key===' ') inputRef.current?.click()}}>
               <div className="upload-icon"><UploadCloud size={32}/></div>
@@ -108,33 +112,36 @@ function App(){
             </div>
             {error && <div className="error-banner">{error}</div>}
           </> : activeTool==='merge' ? <MergePage/> : <ToolPage key={activeTool} tool={activeTool}/>}
-        </section>
+        </section>}
         {activeTool==='extract' && <section className="seo-info">
           <h1>Datenfreundlicher PDF-Konverter: PDF zu Markdown, Text und JSON</h1>
           <p>PDFPress extrahiert Text und Struktur aus PDF-Dateien und wandelt sie in sauberes Markdown, reinen Text oder JSON um — inklusive automatischer Texterkennung (OCR) für gescannte Dokumente. Überschriften, Listen und Tabellen werden dabei erkannt, nicht nur roher Fließtext.</p>
           <h2>Warum PDFPress datenfreundlich ist</h2>
           <p>Hochgeladene Dokumente werden ausschließlich auf diesem Server verarbeitet und automatisch gelöscht — es gibt keine Benutzerkonten, keine Dokumentbibliothek und keine Weitergabe an Cloud-Dienste Dritter. Details dazu in der <a href="/datenschutz" onClick={e=>openLegal('datenschutz',e)}>Datenschutzerklärung</a>.</p>
-          <h2>Häufige Fragen zum Datenumgang</h2>
+        </section>}
+        {activeTool==='faq' && <section className="seo-info">
+          <h1>Häufig gestellte Fragen</h1>
+          <p>Fragen zum Datenumgang, die für alle PDFPress-Werkzeuge gelten — PDF-Konverter, PDFs zusammenführen, Metadaten entfernen und Bilder extrahieren.</p>
           <div className="faq">
             <details>
-              <summary>Was passiert mit meinem PDF nach dem Hochladen?</summary>
-              <p>Es wird ausschließlich auf diesem Server verarbeitet (Textextraktion, OCR, Strukturerkennung) und liegt dabei nur im flüchtigen Arbeitsspeicher-Dateisystem (tmpfs) des Backend-Containers — nicht auf einer dauerhaften Festplatte. Es gibt keine Weitergabe an externe Cloud-Dienste.</p>
+              <summary>Was passiert mit meinen PDFs nach dem Hochladen?</summary>
+              <p>Sie werden ausschließlich auf diesem Server verarbeitet und liegen dabei nur im flüchtigen Arbeitsspeicher-Dateisystem (tmpfs) des Backend-Containers — nicht auf einer dauerhaften Festplatte. Es gibt keine Weitergabe an externe Cloud-Dienste.</p>
             </details>
             <details>
-              <summary>Wie lange wird mein Dokument gespeichert?</summary>
-              <p>Standardmäßig {config?.retention_minutes ?? 60} Minuten, danach automatisch und unwiderruflich gelöscht. Du kannst es jederzeit auch manuell vorher löschen.</p>
+              <summary>Wie lange werden meine Dokumente gespeichert?</summary>
+              <p>Beim PDF-Konverter standardmäßig {config?.retention_minutes ?? 60} Minuten, danach automatisch und unwiderruflich gelöscht (du kannst auch jederzeit manuell vorher löschen). Bei "PDFs zusammenführen", "Metadaten entfernen" und "Bilder extrahieren" läuft die Verarbeitung direkt im Arbeitsspeicher, ohne dass die Datei überhaupt zwischengespeichert wird.</p>
             </details>
             <details>
               <summary>Wer kann mein Dokument sehen, solange es existiert?</summary>
-              <p>Jede Person mit dem Link zu deinem Dokument (einer zufälligen, nicht erratbaren ID) kann während der Aufbewahrungsdauer darauf zugreifen — es gibt keinen zusätzlichen Passwortschutz. Teile den Link deshalb nur mit Personen, denen du das Dokument auch sonst zeigen würdest.</p>
+              <p>Beim PDF-Konverter kann jede Person mit dem Link zu deinem Dokument (einer zufälligen, nicht erratbaren ID) während der Aufbewahrungsdauer darauf zugreifen — es gibt keinen zusätzlichen Passwortschutz. Teile den Link deshalb nur mit Personen, denen du das Dokument auch sonst zeigen würdest.</p>
             </details>
             <details>
               <summary>Wird meine IP-Adresse oder mein Zugriff protokolliert?</summary>
               <p>Nein. Der Webserver, der als einziger externer Zugangspunkt dient, führt kein Zugriffs-Log. Es werden keine Seitenaufrufe oder IP-Adressen dauerhaft gespeichert oder ausgewertet.</p>
             </details>
             <details>
-              <summary>Wird mein Dokument für KI-Training verwendet?</summary>
-              <p>Nein. Es findet kein Training statt. Die optionale KI-Strukturierungsstufe ist auf dieser Instanz standardmäßig deaktiviert; falls sie aktiv ist, läuft sie über ein selbst betriebenes, lokales Sprachmodell (Ollama) — Textinhalte verlassen den Server auch dann nicht.</p>
+              <summary>Werden meine Dokumente für KI-Training verwendet?</summary>
+              <p>Nein. Es findet kein Training statt. Die optionale KI-Strukturierungsstufe des PDF-Konverters ist auf dieser Instanz standardmäßig deaktiviert; falls sie aktiv ist, läuft sie über ein selbst betriebenes, lokales Sprachmodell (Ollama) — Textinhalte verlassen den Server auch dann nicht.</p>
             </details>
           </div>
         </section>}
@@ -164,7 +171,7 @@ function App(){
   }
 
   return <div className="app-shell workspace-shell">
-    <Header theme={theme} setTheme={setTheme} onSettings={()=>setSettingsOpen(true)} meta={<div className="doc-meta"><strong>{status.filename}</strong><span>·</span><span>{status.total_pages||'…'} Seiten</span><span>·</span><span>{formatBytes(status.size_bytes)}</span></div>} />
+    <Header theme={theme} setTheme={setTheme} onSettings={()=>setSettingsOpen(true)} onLogoClick={goHome} meta={<div className="doc-meta"><strong>{status.filename}</strong><span>·</span><span>{status.total_pages||'…'} Seiten</span><span>·</span><span>{formatBytes(status.size_bytes)}</span></div>} />
     <StatusBar status={status}/>
     {status.state!=='COMPLETE'&&status.state!=='FAILED'&&<div className="processing-hint">Die Verarbeitung kann bei umfangreichen oder gescannten PDFs mehrere Minuten dauern.</div>}
     {error&&<div className="inline-error">{error}</div>}
@@ -242,13 +249,13 @@ function openKofi(){
   }
 }
 
-const TOOL_ITEMS:[Tool,string,LucideIcon][]=[['extract','PDF → Text',FileText],['merge','PDFs zusammenführen',Combine],['metadata','Metadaten entfernen',Eraser],['images','Bilder extrahieren',Images]]
+const TOOL_ITEMS:[Tool,string,LucideIcon][]=[['extract','PDF → Text',FileText],['merge','PDFs zusammenführen',Combine],['metadata','Metadaten entfernen',Eraser],['images','Bilder extrahieren',Images],['faq','FAQ',MessageCircleQuestion]]
 
-function Header({theme,setTheme,onSettings,meta,activeTool,onToolChange}:{theme:'light'|'dark';setTheme:(t:'light'|'dark')=>void;onSettings:()=>void;meta?:JSX.Element;activeTool?:Tool;onToolChange?:(t:Tool)=>void}){
+function Header({theme,setTheme,onSettings,meta,activeTool,onToolChange,onLogoClick}:{theme:'light'|'dark';setTheme:(t:'light'|'dark')=>void;onSettings:()=>void;meta?:JSX.Element;activeTool?:Tool;onToolChange?:(t:Tool)=>void;onLogoClick:()=>void}){
   const [menuOpen,setMenuOpen]=useState(false)
   const hasNav=activeTool!==undefined && onToolChange!==undefined
   return <header className="header">
-    <div className="brand"><img src="/PDFPressCompactLogo.png" className="header-logo" alt="PDFPress" /></div>
+    <button className="brand" onClick={onLogoClick} aria-label="Zur Startseite"><img src="/PDFPressCompactLogo.png" className="header-logo" alt="PDFPress" /></button>
     {meta || (hasNav ? <ToolNav active={activeTool} onChange={onToolChange}/> : <div/>)}
     <div className="header-actions">
       <button className="icon-heart" onClick={openKofi} title="Unterstütze PDFPress auf Ko-fi (extern)"><Heart size={21}/></button>
