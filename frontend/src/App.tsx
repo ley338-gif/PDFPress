@@ -205,7 +205,10 @@ function App(){
       </section>
     </main>
     <footer className="bottom-bar">
-      <button className="danger-outline" onClick={()=>reset(true)}><Trash2 size={17}/> Dokument löschen</button>
+      <div className="bottom-bar-left">
+        <button className="danger-outline" onClick={()=>reset(true)}><Trash2 size={17}/> Dokument löschen</button>
+        <nav className="legal-links workspace-legal-links"><a href="/impressum" onClick={e=>openLegal('impressum',e)}>Impressum</a><span>·</span><a href="/datenschutz" onClick={e=>openLegal('datenschutz',e)}>Datenschutz</a></nav>
+      </div>
       <div className={`completion ${status.state==='COMPLETE'?'done':''}`}>{status.state==='COMPLETE'?<Check size={17}/>:<div className="mini-spinner"/>}<span>{status.state==='COMPLETE'?'Verarbeitung abgeschlossen':status.current_message}</span></div>
       <div className="exports"><a className={status.state!=='COMPLETE'?'disabled':''} href={status.state==='COMPLETE'?exportUrl(status.id,'markdown'):undefined}><Download size={17}/> Markdown</a><a className={status.state!=='COMPLETE'?'disabled':''} href={status.state==='COMPLETE'?exportUrl(status.id,'text'):undefined}><Download size={17}/> TXT</a><a className={status.state!=='COMPLETE'?'disabled':''} href={status.state==='COMPLETE'?exportUrl(status.id,'json'):undefined}><Download size={17}/> JSON</a><button className="primary" onClick={()=>reset(true)}><Plus size={18}/> Neue PDF</button></div>
     </footer>
