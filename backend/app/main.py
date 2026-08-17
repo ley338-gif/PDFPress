@@ -18,7 +18,7 @@ from .store import store, ROOT
 from .processor import process_job_with_timeout, try_acquire_job_slot, release_job_slot
 from .exporter import markdown_export, text_export, json_export
 from .stats import stats
-from .tools import strip_metadata, extract_images, merge_pdfs
+from .tools import strip_metadata, extract_images, merge_pdfs, TooManyPagesError
 from .admin import router as admin_router
 
 MAX_MERGE_FILES = 20
@@ -197,7 +197,9 @@ async def tool_merge(request: Request):
     uploads = await _extract_uploads(request)
     datas = [await _read_and_validate_pdf(f) for f in uploads]
     try:
-        result = merge_pdfs(datas)
+        result = await asyncio.to_thread(merge_pdfs, datas)
+    except TooManyPagesError as exc:
+        raise HTTPException(413, str(exc))
     except Exception:
         raise HTTPException(422, "Mindestens eine PDF konnte nicht verarbeitet werden (evtl. verschlüsselt oder beschädigt).")
     await stats.record_tool_use("merge")
@@ -209,7 +211,9 @@ async def tool_strip_metadata(request: Request):
     file = await _extract_upload(request)
     data = await _read_and_validate_pdf(file)
     try:
-        result = strip_metadata(data)
+        result = await asyncio.to_thread(strip_metadata, data)
+    except TooManyPagesError as exc:
+        raise HTTPException(413, str(exc))
     except Exception:
         raise HTTPException(422, "PDF konnte nicht verarbeitet werden (evtl. verschlüsselt oder beschädigt).")
     await stats.record_tool_use("metadata_strip")
@@ -222,7 +226,9 @@ async def tool_extract_images(request: Request):
     file = await _extract_upload(request)
     data = await _read_and_validate_pdf(file)
     try:
-        result = extract_images(data)
+        result = await asyncio.to_thread(extract_images, data)
+    except TooManyPagesError as exc:
+        raise HTTPException(413, str(exc))
     except Exception:
         raise HTTPException(422, "PDF konnte nicht verarbeitet werden (evtl. verschlüsselt oder beschädigt).")
     if not result:

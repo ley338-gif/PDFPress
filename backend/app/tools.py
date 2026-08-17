@@ -3,10 +3,17 @@ import io
 import zipfile
 import pikepdf
 import fitz
+from .config import settings
+
+
+class TooManyPagesError(ValueError):
+    pass
 
 
 def strip_metadata(data: bytes) -> bytes:
     with pikepdf.open(io.BytesIO(data)) as pdf:
+        if len(pdf.pages) > settings.max_pages:
+            raise TooManyPagesError(f"Das PDF enthält {len(pdf.pages)} Seiten; erlaubt sind maximal {settings.max_pages}.")
         if "/Metadata" in pdf.Root:
             del pdf.Root["/Metadata"]
         for key in list(pdf.docinfo.keys()):
@@ -20,6 +27,8 @@ def merge_pdfs(files: list[bytes]) -> bytes:
     merged = pikepdf.new()
     for data in files:
         with pikepdf.open(io.BytesIO(data)) as src:
+            if len(merged.pages) + len(src.pages) > settings.max_pages:
+                raise TooManyPagesError(f"Das zusammengeführte PDF überschreitet das Limit von {settings.max_pages} Seiten.")
             merged.pages.extend(src.pages)
     out = io.BytesIO()
     merged.save(out)
@@ -28,6 +37,8 @@ def merge_pdfs(files: list[bytes]) -> bytes:
 
 def extract_images(data: bytes) -> bytes:
     doc = fitz.open(stream=data, filetype="pdf")
+    if len(doc) > settings.max_pages:
+        raise TooManyPagesError(f"Das PDF enthält {len(doc)} Seiten; erlaubt sind maximal {settings.max_pages}.")
     buf = io.BytesIO()
     count = 0
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
