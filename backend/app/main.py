@@ -53,6 +53,10 @@ async def security_headers(request, call_next):
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; worker-src 'self' blob:; font-src 'self' data:; frame-ancestors 'none'"
+    # Zusätzlich zum HSTS-Header, den ein vorgeschalteter Reverse Proxy (z. B. Caddy, siehe
+    # docs/deployment.md) setzen sollte: greift auch, falls PDFPress direkt (ohne separaten
+    # Proxy) hinter TLS deployed wird. Über Klartext-HTTP ignorieren Browser den Header ohnehin.
+    response.headers["Strict-Transport-Security"] = "max-age=15552000; includeSubDomains"
     return response
 
 @app.get("/api/health")
