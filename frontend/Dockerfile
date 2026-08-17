@@ -1,13 +1,16 @@
 FROM node:22-alpine AS build
 WORKDIR /app
+# pdfjs-dist listet "canvas" als optionale Abhaengigkeit fuer server-seitiges
+# Rendering (im Browser-Build hier ungenutzt). node-canvas versucht zuerst ein
+# vorkompiliertes Binary von GitHub zu laden (prebuild-install) und faellt bei
+# Netzwerkproblemen auf einen lokalen node-gyp-Build zurueck -- ohne diese
+# Alpine-Build-Tools/Libs schlaegt dieser Fallback fehl und kann einen
+# bekannten npm-CLI-Bug ("Exit handler never called!") ausloesen, der den
+# gesamten Install-Schritt abbrechen laesst statt den optionalen Build zu
+# ueberspringen. Mit den Tools installiert sich canvas sauber durch.
+RUN apk add --no-cache python3 make g++ cairo-dev pango-dev jpeg-dev giflib-dev librsvg-dev pixman-dev
 COPY package.json package-lock.json ./
-# npm im Alpine-Image aktualisieren: aeltere npm-Versionen haben einen bekannten
-# CLI-Bug ("Exit handler never called!"), der bei parallel laufenden nativen
-# Kindprozessen (hier: der gescheiterte optionale node-gyp-Build von "canvas",
-# einer optionalen pdfjs-dist-Abhaengigkeit fuer server-seitiges Rendering, das
-# wir im Browser-Build nicht brauchen) ausgeloest werden kann und npm selbst
-# abstuerzen laesst statt den fehlgeschlagenen optionalen Build einfach zu ueberspringen.
-RUN npm install -g npm@latest && npm install
+RUN npm install
 COPY . .
 RUN npm run build
 
