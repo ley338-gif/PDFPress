@@ -14,6 +14,7 @@ PDFPress ist eine bewusst schlanke, lokal/self-hosted betreibbare Webanwendung: 
 - Deutsch, Englisch und kombinierte OCR-Sprachen
 - Seitenweise Ergebnisse mit Source, Bounding Boxes und OCR-Confidence
 - PDF.js-basierter Viewer mit Thumbnails, Zoom und Rotation
+- PDFs zusammenführen mit visueller Drag-&-Drop-Sortierung (Seite-1-Vorschau clientseitig per PDF.js, keine externe Verarbeitung)
 - Synchronisierte Seitenwahl zwischen PDF und Text
 - Vorschau, Markdown-Quelltext und Plaintext
 - Markdown-, TXT- und JSON-Export mit Seitenzuordnung
@@ -84,17 +85,20 @@ python scripts/generate_fixtures.py
 pytest
 ```
 
-Frontend-Build:
+Frontend-Tests und -Build:
 
 ```bash
 cd frontend
 npm install
+npm test
 npm run build
 ```
 
 ## Datenschutz
 
 Dokumente werden ausschließlich temporär unter einer zufälligen internen UUID verarbeitet. Der Originaldateiname wird nicht als Dateisystempfad benutzt. Ein periodischer Cleanup löscht abgelaufene Jobs einschließlich Original-PDF und OCR-Artefakten. Standard: 60 Minuten.
+
+Bei „PDFs zusammenführen" werden die Vorschaubilder (erste Seite jeder Datei) ausschließlich clientseitig im Browser mit PDF.js gerendert, bevor überhaupt eine Datei an den Server gesendet wird. Es findet dafür keine Übertragung an externe APIs, CDNs oder Drittanbieter statt, die Vorschaubilder werden nicht dauerhaft gespeichert, und die eigentliche Zusammenführung läuft weiterhin über die bestehende, rein im Arbeitsspeicher arbeitende Merge-API des Backends.
 
 ## Troubleshooting
 

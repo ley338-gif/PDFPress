@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Document, Page } from 'react-pdf'
 import ReactMarkdown from 'react-markdown'
-import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, Clipboard, Combine, Copy, Download, Eraser, FileText, Heart, HelpCircle, Images, Menu, MessageCircleQuestion, Moon, Plus, RotateCw, Search, Sun, Trash2, UploadCloud, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Clipboard, Combine, Copy, Download, Eraser, FileText, Heart, HelpCircle, Images, Menu, MessageCircleQuestion, Moon, Plus, RotateCw, Search, Sun, Trash2, UploadCloud, X, ZoomIn, ZoomOut } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { deleteJob, exportUrl, extractImages, fileUrl, getConfig, getPages, getStatus, mergePdfs, stripMetadata, uploadPdf } from './api'
+import { deleteJob, exportUrl, extractImages, fileUrl, getConfig, getPages, getStatus, stripMetadata, uploadPdf } from './api'
 import type { AppConfig, JobStatus, PageResult } from './types'
+import { MergePage } from './components/merge/MergePage'
+import { formatBytes } from './format'
 
 type Tab='preview'|'markdown'|'text'
 type Tool='extract'|'metadata'|'images'|'merge'|'faq'
-
-function formatBytes(bytes:number){ if(bytes<1024*1024) return `${(bytes/1024).toFixed(0)} KB`; return `${(bytes/1024/1024).toFixed(1)} MB` }
 
 function App(){
   const [status,setStatus]=useState<JobStatus|null>(null)
@@ -301,70 +301,6 @@ function ExportDropdown({jobId,onClose}:{jobId:string;onClose:()=>void}){
     <div className="export-dropdown" role="menu">
       {items.map(([kind,label])=><a key={kind} role="menuitem" href={exportUrl(jobId,kind)} onClick={onClose}><Download size={16}/>{label}</a>)}
     </div>
-  </>
-}
-
-function MergePage(){
-  const [files,setFiles]=useState<File[]>([])
-  const [busy,setBusy]=useState(false)
-  const [error,setError]=useState<string|null>(null)
-  const [result,setResult]=useState<{url:string;name:string}|null>(null)
-  const [drag,setDrag]=useState(false)
-  const inputRef=useRef<HTMLInputElement>(null)
-
-  useEffect(()=>()=>{ if(result) URL.revokeObjectURL(result.url) },[result])
-
-  function addFiles(list?:FileList|File[]|null){
-    if(!list) return
-    setError(null); setResult(null)
-    const picked=Array.from(list)
-    const nonPdf=picked.find(f=>f.type!=='application/pdf' && !f.name.toLowerCase().endsWith('.pdf'))
-    if(nonPdf){ setError(`"${nonPdf.name}" ist keine PDF-Datei.`); return }
-    setFiles(prev=>[...prev,...picked])
-  }
-  function move(index:number,dir:-1|1){
-    setFiles(prev=>{
-      const next=[...prev]
-      const target=index+dir
-      if(target<0||target>=next.length) return prev
-      ;[next[index],next[target]]=[next[target],next[index]]
-      return next
-    })
-  }
-  function remove(index:number){ setFiles(prev=>prev.filter((_,i)=>i!==index)) }
-
-  async function merge(){
-    if(files.length<2){ setError('Bitte mindestens zwei PDF-Dateien auswählen.'); return }
-    setError(null); setBusy(true)
-    try{
-      const blob=await mergePdfs(files)
-      setResult({url:URL.createObjectURL(blob), name:'zusammengefuehrt.pdf'})
-    }catch(e){ setError((e as Error).message) }
-    finally{ setBusy(false) }
-  }
-
-  return <>
-    <div className={`dropzone ${drag?'dragging':''}`} onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);addFiles(e.dataTransfer.files)}} onClick={()=>inputRef.current?.click()} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==='Enter'||e.key===' ') inputRef.current?.click()}}>
-      <div className="upload-icon"><Combine size={32}/></div>
-      <h2>PDFs zusammenführen</h2>
-      <p>Mehrere PDF-Dateien auswählen oder hierher ziehen</p>
-      <button className="primary" onClick={e=>{e.stopPropagation();inputRef.current?.click()}}>PDFs auswählen</button>
-      <input ref={inputRef} hidden type="file" accept="application/pdf,.pdf" multiple onChange={e=>{addFiles(e.target.files); e.target.value=''}}/>
-    </div>
-    {files.length>0 && <ul className="merge-list">
-      {files.map((f,i)=><li key={i}>
-        <span className="merge-list-index">{i+1}</span>
-        <span className="merge-list-name">{f.name}</span>
-        <span className="merge-list-actions">
-          <button onClick={()=>move(i,-1)} disabled={i===0} aria-label="Nach oben"><ArrowUp size={15}/></button>
-          <button onClick={()=>move(i,1)} disabled={i===files.length-1} aria-label="Nach unten"><ArrowDown size={15}/></button>
-          <button onClick={()=>remove(i)} aria-label="Entfernen"><X size={15}/></button>
-        </span>
-      </li>)}
-    </ul>}
-    {files.length>0 && !result && <button className="primary" disabled={busy||files.length<2} onClick={merge}>{busy?'Wird zusammengeführt…':`${files.length} PDFs zusammenführen`}</button>}
-    {result && <a className="primary" href={result.url} download={result.name}><Download size={18}/> {result.name}</a>}
-    {error && <div className="error-banner">{error}</div>}
   </>
 }
 
