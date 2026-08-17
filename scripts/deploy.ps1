@@ -10,7 +10,7 @@ Nutzung (aus dem Projekt-Root):
 #>
 param(
     [string]$Message = "Deploy $(Get-Date -Format 'yyyy-MM-dd HH:mm')",
-    [string]$ServerHost = "root@217.160.36.200",
+    [string]$ServerHost = "deploy@217.160.36.200",
     [string]$ServerPath = "/opt/pdfpress",
     [string]$HealthUrl = "https://pdfpress.de/api/health"
 )
