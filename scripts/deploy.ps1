@@ -34,8 +34,22 @@ try {
     }
 
     Step "2/4  Dateien zum Server kopieren (scp)"
-    scp -r "$RepoRoot\*" "${ServerHost}:${ServerPath}/"
-    if ($LASTEXITCODE -ne 0) { throw "scp fehlgeschlagen (Exit $LASTEXITCODE)" }
+    # robocopy in einen sauberen Staging-Ordner spiegeln, damit node_modules/.git/
+    # Build-Artefakte nicht mit ueber scp geschleppt werden (der Server baut sein
+    # eigenes node_modules beim Docker-Build aus package.json neu).
+    $StagingDir = Join-Path $env:TEMP "pdfpress-deploy-$(Get-Date -Format 'yyyyMMddHHmmss')"
+    robocopy $RepoRoot $StagingDir /MIR `
+        /XD node_modules .git dist .vite coverage __pycache__ .pytest_cache `
+        /XF *.pyc *.log `
+        /NFL /NDL /NJH /NJS /NP | Out-Null
+    if ($LASTEXITCODE -ge 8) { throw "robocopy fehlgeschlagen (Exit $LASTEXITCODE)" }
+
+    try {
+        scp -r "$StagingDir\*" "${ServerHost}:${ServerPath}/"
+        if ($LASTEXITCODE -ne 0) { throw "scp fehlgeschlagen (Exit $LASTEXITCODE)" }
+    } finally {
+        Remove-Item -Recurse -Force $StagingDir -ErrorAction SilentlyContinue
+    }
 
     Step "3/4  Container auf dem Server neu bauen"
     ssh $ServerHost "cd $ServerPath && docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d --build"
