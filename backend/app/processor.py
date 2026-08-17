@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio
 import multiprocessing
+from datetime import datetime, timezone
 from pathlib import Path
 import fitz
 from .models import DocumentJob, PageResult
@@ -8,6 +9,7 @@ from .structure import clean_text, extract_embedded_blocks, blocks_to_markdown, 
 from .ocr import correct_orientation, preprocess_image, run_tesseract_tsv
 from .config import settings
 from .llm import refine_markdown
+from .stats import stats
 
 MIN_USEFUL_CHARS = 24
 
@@ -107,6 +109,7 @@ def render_page_isolated(pdf_path: str, page_index: int, target: Path) -> None:
         raise ValueError(message)
 
 async def process_job(job: DocumentJob):
+    started = datetime.now(timezone.utc)
     try:
         job.state = "ANALYZING"
         job.current_message = "Dokument wird analysiert"
@@ -162,11 +165,13 @@ async def process_job(job: DocumentJob):
         job.state = "COMPLETE"
         job.current_message = "Verarbeitung abgeschlossen"
         job.touch()
+        await stats.record_job_outcome("COMPLETE", (datetime.now(timezone.utc) - started).total_seconds())
     except Exception as exc:
         job.state = "FAILED"
         job.error = str(exc)
         job.current_message = "Verarbeitung fehlgeschlagen"
         job.touch()
+        await stats.record_job_outcome("FAILED")
 
 
 async def process_job_with_timeout(job: DocumentJob):
@@ -177,5 +182,6 @@ async def process_job_with_timeout(job: DocumentJob):
         job.error = f"Verarbeitung hat das Zeitlimit von {settings.processing_timeout_seconds} Sekunden überschritten."
         job.current_message = "Verarbeitung wegen Zeitüberschreitung abgebrochen"
         job.touch()
+        await stats.record_job_outcome("FAILED")
     finally:
         await release_job_slot()

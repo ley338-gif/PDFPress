@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     llm_enabled: bool = False
     ollama_base_url: str = "http://host.docker.internal:11434"
     ollama_model: str = "qwen3:1.7b"
+    admin_token: str = ""
+    stats_file: str = "/data/stats.json"
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()

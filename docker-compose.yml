@@ -23,6 +23,10 @@ services:
       LLM_ENABLED: ${LLM_ENABLED:-false}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:1.7b}
+      # Schaltet /api/admin frei (Basic Auth, Passwort = dieses Token). Leer = Admin-Bereich
+      # deaktiviert (404), damit er nicht versehentlich ungeschützt im Netz landet.
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      STATS_FILE: ${STATS_FILE:-/data/stats.json}
     expose:
       - "8000"
     tmpfs:

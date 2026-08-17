@@ -470,11 +470,13 @@ function LegalModal({kind,onClose}:{kind:'impressum'|'datenschutz';onClose:()=>v
           <p>PDFPress verarbeitet von dir hochgeladene PDF-Dateien ausschließlich temporär auf diesem Server, um Text zu extrahieren und die Dokumentstruktur zu rekonstruieren. Es gibt keine Benutzerkonten, keine Dokumentbibliothek und keine Weitergabe an Cloud-Dienste Dritter. Dokumente und daraus erzeugte Ergebnisse werden automatisch gelöscht — standardmäßig nach 60 Minuten (serverseitig konfigurierbar). Rechtsgrundlage ist Art. 6 Abs. 1 lit. b bzw. f DSGVO.</p>
           <h2>3. Server-Logs</h2>
           <p>Der vorgeschaltete Reverse Proxy (Caddy) verarbeitet beim Aufruf dieser Website technisch notwendige Verbindungsdaten (u. a. IP-Adresse) ausschließlich im Arbeitsspeicher, um die Anfrage weiterzuleiten. Es ist kein Zugriffs-Logging (Access-Log) aktiviert — es werden keine einzelnen Seitenaufrufe dauerhaft gespeichert oder ausgewertet.</p>
-          <h2>4. Lokale Speicherung im Browser</h2>
+          <h2>4. Anonyme Nutzungsstatistik</h2>
+          <p>Um den Betrieb einschätzen zu können, zählt PDFPress serverseitig ausschließlich aggregierte Nutzungszahlen: Gesamtzahl verarbeiteter Dokumente, Seitenaufrufe, Nutzung einzelner Werkzeuge (z. B. Zusammenführen, Metadaten entfernen) sowie Erfolgs-/Fehlerquote, jeweils auch als Tagesverlauf. Es werden dabei keine IP-Adressen, Dateinamen, Dokumentinhalte, Cookies oder sonstige Kennungen gespeichert, die einen Rückschluss auf einzelne Personen zulassen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse am stabilen Betrieb des Dienstes).</p>
+          <h2>5. Lokale Speicherung im Browser</h2>
           <p>PDFPress verwendet keine Cookies. Im lokalen Speicher (localStorage) deines Browsers wird lediglich die Hell/Dunkel-Modus-Einstellung gespeichert — rein funktional, ohne Personenbezug oder Trackingzweck.</p>
-          <h2>5. Optionale lokale KI-Strukturierung</h2>
+          <h2>6. Optionale lokale KI-Strukturierung</h2>
           <p>Diese Instanz von PDFPress betreibt aktuell keine optionale KI-Strukturierungsstufe (Ollama ist deaktiviert). Die Dokumentstruktur wird ausschließlich regelbasiert auf diesem Server rekonstruiert; Textinhalte verlassen den Server dafür nicht.</p>
-          <h2>6. Deine Rechte</h2>
+          <h2>7. Deine Rechte</h2>
           <p>Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch (Art. 15–21 DSGVO) sowie das Recht auf Beschwerde bei einer Datenschutzaufsichtsbehörde.</p>
         </>}
       </div>

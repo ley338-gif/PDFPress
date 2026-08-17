@@ -19,6 +19,7 @@ from .processor import process_job_with_timeout, try_acquire_job_slot, release_j
 from .exporter import markdown_export, text_export, json_export
 from .stats import stats
 from .tools import strip_metadata, extract_images, merge_pdfs
+from .admin import router as admin_router
 
 MAX_MERGE_FILES = 20
 
@@ -42,6 +43,7 @@ app = FastAPI(
     openapi_url="/api/openapi.json" if settings.enable_api_docs else None,
 )
 app.add_middleware(CORSMiddleware, allow_origins=[], allow_methods=["GET", "POST", "DELETE"], allow_headers=["Content-Type"])
+app.include_router(admin_router)
 
 @app.middleware("http")
 async def security_headers(request, call_next):
@@ -59,7 +61,13 @@ async def health():
 
 @app.get("/api/stats")
 async def usage_stats():
-    return stats.snapshot()
+    snapshot = stats.snapshot()
+    return {"total_uploads": snapshot["total_uploads"], "since": snapshot["since"]}
+
+@app.post("/api/track/pageview", status_code=204)
+async def track_pageview():
+    await stats.record_page_view()
+    return Response(status_code=204)
 
 @app.get("/api/config")
 async def config_public():
@@ -188,6 +196,7 @@ async def tool_merge(request: Request):
         result = merge_pdfs(datas)
     except Exception:
         raise HTTPException(422, "Mindestens eine PDF konnte nicht verarbeitet werden (evtl. verschlüsselt oder beschädigt).")
+    await stats.record_tool_use("merge")
     return Response(result, media_type="application/pdf", headers={"Content-Disposition": content_disposition("zusammengefuehrt.pdf")})
 
 
@@ -199,6 +208,7 @@ async def tool_strip_metadata(request: Request):
         result = strip_metadata(data)
     except Exception:
         raise HTTPException(422, "PDF konnte nicht verarbeitet werden (evtl. verschlüsselt oder beschädigt).")
+    await stats.record_tool_use("metadata_strip")
     stem = Path(file.filename or "document.pdf").stem
     return Response(result, media_type="application/pdf", headers={"Content-Disposition": content_disposition(f"{stem}-ohne-metadaten.pdf")})
 
@@ -213,6 +223,7 @@ async def tool_extract_images(request: Request):
         raise HTTPException(422, "PDF konnte nicht verarbeitet werden (evtl. verschlüsselt oder beschädigt).")
     if not result:
         raise HTTPException(404, "In diesem PDF wurden keine eingebetteten Bilder gefunden.")
+    await stats.record_tool_use("images_extract")
     stem = Path(file.filename or "document.pdf").stem
     return Response(result, media_type="application/zip", headers={"Content-Disposition": content_disposition(f"{stem}-bilder.zip")})
 
