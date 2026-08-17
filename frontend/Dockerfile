@@ -1,7 +1,13 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm install
+# npm im Alpine-Image aktualisieren: aeltere npm-Versionen haben einen bekannten
+# CLI-Bug ("Exit handler never called!"), der bei parallel laufenden nativen
+# Kindprozessen (hier: der gescheiterte optionale node-gyp-Build von "canvas",
+# einer optionalen pdfjs-dist-Abhaengigkeit fuer server-seitiges Rendering, das
+# wir im Browser-Build nicht brauchen) ausgeloest werden kann und npm selbst
+# abstuerzen laesst statt den fehlgeschlagenen optionalen Build einfach zu ueberspringen.
+RUN npm install -g npm@latest && npm install
 COPY . .
 RUN npm run build
 
